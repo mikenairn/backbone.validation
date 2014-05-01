@@ -127,7 +127,7 @@ Backbone.Validation = (function(_){
     // for that attribute. If one or more errors are found,
     // the first error message is returned.
     // If the attribute is valid, an empty string is returned.
-    var validateAttr = function(model, attr, value, computed) {
+    var validateAttr = function(model, attr, value, computed, view) {
       // Reduces the array of validators to an error message by
       // applying all the validators and returning the first error
       // message, if any.
@@ -135,7 +135,7 @@ Backbone.Validation = (function(_){
         // Pass the format functions plus the default
         // validators as the context to the validator
         var ctx = _.extend({}, formatFunctions, defaultValidators),
-            result = validator.fn.call(ctx, value, attr, validator.val, model, computed);
+            result = validator.fn.call(ctx, value, attr, validator.val, model, computed, view);
 
         if(result === false || memo === false) {
           return false;
@@ -150,7 +150,7 @@ Backbone.Validation = (function(_){
     // Loops through the model's attributes and validates them all.
     // Returns and object containing names of invalid attributes
     // as well as error messages.
-    var validateModel = function(model, attrs) {
+    var validateModel = function(model, attrs, view) {
       var error,
           invalidAttrs = {},
           isValid = true,
@@ -158,7 +158,7 @@ Backbone.Validation = (function(_){
           flattened = flatten(attrs);
 
       _.each(flattened, function(val, attr) {
-        error = validateAttr(model, attr, val, computed);
+        error = validateAttr(model, attr, val, computed, view);
         if (error) {
           invalidAttrs[attr] = error;
           isValid = false;
@@ -193,7 +193,7 @@ Backbone.Validation = (function(_){
             return _.isEmpty(result) ? undefined : result;
           }
           else {
-            return validateAttr(this, attr, value, _.extend({}, this.attributes));
+            return validateAttr(this, attr, value, _.extend({}, this.attributes), view);
           }
         },
 
@@ -204,11 +204,11 @@ Backbone.Validation = (function(_){
           var flattened = flatten(this.attributes);
 
           if(_.isString(option)){
-            return !validateAttr(this, option, flattened[option], _.extend({}, this.attributes));
+            return !validateAttr(this, option, flattened[option], _.extend({}, this.attributes), view);
           }
           if(_.isArray(option)){
             return _.reduce(option, function(memo, attr) {
-              return memo && !validateAttr(this, attr, flattened[attr], _.extend({}, this.attributes));
+              return memo && !validateAttr(this, attr, flattened[attr], _.extend({}, this.attributes), view);
             }, true, this);
           }
           if(option === true) {
@@ -228,7 +228,7 @@ Backbone.Validation = (function(_){
               allAttrs = _.extend({}, validatedAttrs, model.attributes, attrs),
               changedAttrs = flatten(attrs || allAttrs),
 
-              result = validateModel(model, allAttrs);
+              result = validateModel(model, allAttrs, view);
 
           model._isValid = result.isValid;
 
@@ -420,7 +420,8 @@ Backbone.Validation = (function(_){
     number: '{0} must be a number',
     email: '{0} must be a valid email',
     url: '{0} must be a valid url',
-    inlinePattern: '{0} is invalid'
+    inlinePattern: '{0} is invalid',
+    unique: '{0} already exists'
   };
 
   // Label formatters
@@ -496,11 +497,11 @@ Backbone.Validation = (function(_){
     return {
       // Function validator
       // Lets you implement a custom function used for validation
-      fn: function(value, attr, fn, model, computed) {
+      fn: function(value, attr, fn, model, computed, view) {
         if(_.isString(fn)){
           fn = model[fn];
         }
-        return fn.call(model, value, attr, computed);
+        return fn.call(model, value, attr, computed, view);
       },
 
       // Required validator
@@ -612,6 +613,18 @@ Backbone.Validation = (function(_){
       pattern: function(value, attr, pattern, model) {
         if (!hasValue(value) || !value.toString().match(defaultPatterns[pattern] || pattern)) {
           return this.format(defaultMessages[pattern] || defaultMessages.inlinePattern, this.formatLabel(attr, model), pattern);
+        }
+      },
+
+      // Unique validator
+      // Validates that the value of the attribute does not match any currently in the collection
+      unique: function(value, attr, unique, model, computed, view) {
+        if(view.collection) {
+          var query = {};
+          query[attr] = value;
+          if(view.collection.findWhere(query)) {
+            return this.format(defaultMessages.unique, this.formatLabel(attr, model));
+          }
         }
       }
     };
