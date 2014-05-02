@@ -618,11 +618,12 @@ Backbone.Validation = (function(_){
 
       // Unique validator
       // Validates that the value of the attribute does not match any currently in the collection
-      unique: function(value, attr, unique, model, computed, view) {
-        if(view.collection) {
-          var query = {};
-          query[attr] = value;
-          if(view.collection.findWhere(query)) {
+      unique: function (value, attr, unique, model, computed, view) {
+        if (view.collection) {
+          var found = view.collection.find(function (m) {
+            return m.id !== model.id && m.get(attr) === value;
+          });
+          if (found) {
             return this.format(defaultMessages.unique, this.formatLabel(attr, model));
           }
         }
